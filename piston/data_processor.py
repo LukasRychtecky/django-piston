@@ -8,7 +8,6 @@ from six.moves import cStringIO
 from django.forms.fields import FileField
 from django.utils.translation import ugettext_lazy as _, ugettext
 from django.core.files.uploadedfile import InMemoryUploadedFile
-from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
 from django.forms.models import ModelChoiceField, ModelMultipleChoiceField
 from django.http.response import Http404
 from django.utils.encoding import force_text
@@ -358,13 +357,20 @@ class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProces
 
             try:
                 del self.inst._prefetched_objects_cache[model_descriptor.related.field.related_query_name()]
-            except (AttributeError, KeyError) as ex:
+            except (AttributeError, KeyError):
                 pass
 
     def _process_field(self, data, files, key, data_item):
         model_descriptor = getattr(self.model, key, None)
-        if (isinstance(model_descriptor, ForeignRelatedObjectsDescriptor) and ((isinstance(data_item, dict)
-            and set(data_item.keys()).union({'set', 'add', 'remove'})) or (isinstance(data_item, list)))):
+        # compatibility with older Django, see https://docs.djangoproject.com/en/1.9/releases/1.9/
+        try:
+            from django.db.models.fields.related_descriptors import ReverseManyToOneDescriptor
+        except ImportError:
+            from django.db.models.fields.related import ForeignRelatedObjectsDescriptor as ReverseManyToOneDescriptor
+
+        if (isinstance(model_descriptor, ReverseManyToOneDescriptor) and
+            ((isinstance(data_item, dict) and
+                set(data_item.keys()).union({'set', 'add', 'remove'})) or (isinstance(data_item, list)))):
             self._create_or_update_reverse_related_objects(data, key, data_item, model_descriptor)
 
 
@@ -399,5 +405,11 @@ class ReverseDataPostprocessor(ResourceProcessorMixin, DataProcessor):
 
     def _process_field(self, data, files, key, data_item):
         model_descriptor = getattr(self.model, key, None)
-        if isinstance(model_descriptor, SingleRelatedObjectDescriptor):
+        # compatibility with older Django, see https://docs.djangoproject.com/en/1.9/releases/1.9/
+        try:
+            from django.db.models.fields.related_descriptors import ReverseOneToOneDescriptor
+        except ImportError:
+            from django.db.models.fields.related import SingleRelatedObjectDescriptor as ReverseOneToOneDescriptor
+
+        if isinstance(model_descriptor, ReverseOneToOneDescriptor):
             self._create_or_update_single_reverse_related_objects(data, key, data_item, model_descriptor)

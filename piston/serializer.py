@@ -5,8 +5,8 @@ import six
 
 from django.db.models import Model
 from django.db.models.query import QuerySet
+from django.db.models import fields
 from django.db.models.fields.files import FileField
-from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
 from django.utils import formats, timezone
 from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _
@@ -279,9 +279,20 @@ class ModelSerializer(Serializer):
     def _get_reverse_excluded_fields(self, field, obj):
         model = obj.__class__
         exclude_fields = []
-        if hasattr(model, field) and isinstance(getattr(model, field, None),
-                                                            (ForeignRelatedObjectsDescriptor,
-                                                            SingleRelatedObjectDescriptor)):
+
+        # compatibility with older Django, see https://docs.djangoproject.com/en/1.9/releases/1.9/
+        try:
+            from django.db.models.fields.related_descriptors import ReverseManyToOneDescriptor
+        except ImportError:
+            from django.db.models.fields.related import ForeignRelatedObjectsDescriptor as ReverseManyToOneDescriptor
+
+        try:
+            from django.db.models.fields.related_descriptors import ReverseOneToOneDescriptor
+        except ImportError:
+            from django.db.models.fields.related import SingleRelatedObjectDescriptor as ReverseOneToOneDescriptor
+
+        if hasattr(model, field) and isinstance(getattr(model, field, None), (ReverseManyToOneDescriptor,
+                                                                              ReverseOneToOneDescriptor)):
             exclude_fields.append(getattr(model, field).related.field.name)
         return exclude_fields
 
@@ -350,8 +361,8 @@ class ModelSerializer(Serializer):
             else:
                 method = get_class_method(obj, field_name)
                 return self._to_python_chain(request, self._val_to_raw_verbose(val), serialization_format,
-                                                 allow_tags=method is not None and getattr(method, 'allow_tags', False),
-                                                 ** kwargs)
+                                             allow_tags=method is not None and getattr(method, 'allow_tags', False),
+                                             ** kwargs)
 
     def _fields_to_python(self, request, obj, serialization_format, fieldset, requested_fieldset, **kwargs):
         resource_method_fields = self._get_resource_method_fields(self._get_model_resource(request, obj), fieldset)

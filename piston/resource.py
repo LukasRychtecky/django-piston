@@ -22,7 +22,7 @@ from functools import update_wrapper
 
 from chamber.shortcuts import get_object_or_none
 from chamber.exceptions import PersistenceException
-from chamber.utils import remove_diacritics
+from chamber.utils import remove_accent
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTNoContentResponse,
@@ -691,7 +691,7 @@ class BaseModelResource(BaseObjectResource):
 
     def _get_resource_name(self):
         return '%s' % (
-            force_text(remove_diacritics(force_text(self.model._meta.verbose_name_plural))),
+            force_text(remove_accent(force_text(self.model._meta.verbose_name_plural))),
         )
 
     def _get_instance(self, data):
